@@ -1,0 +1,152 @@
+version: "3.9"
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+
+    environment:
+      MYSQL_ROOT_PASSWORD: Kiruthiga
+
+    ports:
+      - "3306:3306"
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+    networks:
+      - hospital-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    image: auth-service:v1
+    container_name: auth-service
+
+    depends_on:
+      - mysql
+
+    ports:
+      - "8081:8081"
+
+    networks:
+      - hospital-network
+
+  patient-service:
+    image: patient-service:v1
+    container_name: patient-service
+
+    depends_on:
+      - mysql
+
+    ports:
+      - "8082:8082"
+
+    networks:
+      - hospital-network
+
+  doctor-service:
+    image: doctor-service:v1
+    container_name: doctor-service
+
+    depends_on:
+      - mysql
+
+    ports:
+      - "8083:8083"
+
+    networks:
+      - hospital-network
+
+  appointment-service:
+    image: appointment-service:v1
+    container_name: appointment-service
+
+    depends_on:
+      - mysql
+
+    ports:
+      - "8084:8084"
+
+    networks:
+      - hospital-network
+
+  medical-record-service:
+    image: medical-record-service:v1
+    container_name: medical-record-service
+
+    depends_on:
+      - mysql
+
+    ports:
+      - "8085:8085"
+
+    networks:
+      - hospital-network
+
+  billing-service:
+    image: billing-service:v1
+    container_name: billing-service
+
+    depends_on:
+      - mysql
+
+    ports:
+      - "8086:8086"
+
+    networks:
+      - hospital-network
+
+  notification-service:
+    image: notification-service:v1
+    container_name: notification-service
+
+    depends_on:
+        mysql:
+          condition: service_healthy
+          
+
+
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: notification_db
+      DB_USER: root
+      DB_PASSWORD: Kiruthiga
+
+    ports:
+      - "8000:8000"
+
+    networks:
+      - hospital-network
+
+  api-gateway:
+    image: api-gateway:v1
+    container_name: api-gateway
+
+    depends_on:
+      - auth-service
+      - patient-service
+      - doctor-service
+      - appointment-service
+      - medical-record-service
+      - billing-service
+      - notification-service
+
+    ports:
+      - "8080:8080"
+
+    networks:
+      - hospital-network
+
+volumes:
+  mysql-data:
+
+networks:
+  hospital-network:
