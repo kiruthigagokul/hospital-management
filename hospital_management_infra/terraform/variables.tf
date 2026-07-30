@@ -1,7 +1,14 @@
 variable "aws_region" {
-  default = "ap-south-1"
+  description = "AWS Region"
+  type        = string
 }
 
 variable "cluster_name" {
-  default = "hospital-cluster"
+  description = "EKS Cluster Name"
+  type        = string
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
 }
