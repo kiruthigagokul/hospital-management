@@ -36,17 +36,22 @@ spring:
                 - Path=/appointments/**
 
             # Medical Record Service
+            # Medical Record Service
             - id: medical-record-service
               uri: http://medical-record-service:8085
               predicates:
                 - Path=/api/medical-records/**
+              filters:
+                - StripPrefix=1
 
-            # Billing Service
+
+# Billing Service
             - id: billing-service
               uri: http://billing-service:8086
               predicates:
                 - Path=/api/billing/**
-
+              filters:
+                - StripPrefix=1
             # Notification Service (FastAPI)
             - id: notification-service
               uri: http://notification-service:8000

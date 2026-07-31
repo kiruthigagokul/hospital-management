@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+  namespace: hospital
+data:
+  MYSQL_HOST: mysql
+  MYSQL_PORT: "3306"

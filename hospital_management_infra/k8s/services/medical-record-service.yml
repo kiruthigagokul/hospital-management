@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medical-record-service
+  namespace: hospital
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: medical-record-service
+
+  template:
+    metadata:
+      labels:
+        app: medical-record-service
+
+    spec:
+      containers:
+      - name: medical-record-service
+        image: 897355252117.dkr.ecr.ap-south-1.amazonaws.com/medical-record-service:v1
+
+        ports:
+        - containerPort: 8085
+
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:mysql://mysql:3306/hospital
+
+        - name: SPRING_DATASOURCE_USERNAME
+          value: root
+
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: root
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: medical-record-service
+  namespace: hospital
+
+spec:
+  selector:
+    app: medical-record-service
+
+  ports:
+  - port: 8085
+    targetPort: 8085

@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: hospital
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: notification-service
+
+  template:
+    metadata:
+      labels:
+        app: notification-service
+
+    spec:
+      containers:
+      - name: notification-service
+
+        image: 897355252117.dkr.ecr.ap-south-1.amazonaws.com/notification-service:v1
+
+        ports:
+        - containerPort: 8000
+
+        env:
+        - name: DB_HOST
+          value: mysql
+
+        - name: DB_USER
+          value: root
+
+        - name: DB_PASSWORD
+          value: root
+
+        - name: DB_NAME
+          value: hospital
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: hospital
+
+spec:
+  selector:
+    app: notification-service
+
+  ports:
+  - port: 8000
+    targetPort: 8000

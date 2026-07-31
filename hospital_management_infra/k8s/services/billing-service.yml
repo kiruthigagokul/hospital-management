@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+  namespace: hospital
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: billing-service
+
+  template:
+    metadata:
+      labels:
+        app: billing-service
+
+    spec:
+      containers:
+      - name: billing-service
+        image: 897355252117.dkr.ecr.ap-south-1.amazonaws.com/billing-service:v1
+
+        ports:
+        - containerPort: 8086
+
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:mysql://mysql:3306/hospital
+
+        - name: SPRING_DATASOURCE_USERNAME
+          value: root
+
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: root
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-service
+  namespace: hospital
+
+spec:
+  selector:
+    app: billing-service
+
+  ports:
+  - port: 8086
+    targetPort: 8086
