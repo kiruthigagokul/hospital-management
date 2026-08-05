@@ -15,10 +15,13 @@ pipeline {
 
     agent any
 
+
     tools {
-    
+
         jdk 'JDK21'
+
         maven 'Maven'
+
     }
 
 
@@ -39,137 +42,91 @@ pipeline {
     }
 
 
-
     stages {
-
 
 
         stage('Checkout Code') {
 
-
             steps {
 
-
                 git(
-
                     branch: 'main',
-
                     credentialsId: 'github-creds',
-
                     url: 'https://github.com/kiruthigagokul/hospital-management.git'
-
                 )
-
 
             }
 
         }
-
-
 
 
         stage('Verify Tools') {
 
-
             steps {
 
-
-                sh 'java -version'
-
-                sh 'mvn -version'
-
-                sh 'docker --version'
-
-                sh 'python3 --version'
-
-                sh 'kubectl version --client'
-
-                sh 'helm version'
-
+                sh '''
+                java -version
+                mvn -version
+                docker --version
+                python3 --version
+                kubectl version --client
+                helm version
+                aws --version
+                '''
 
             }
 
         }
-
-
 
 
         stage('Build Java Services') {
 
-
             steps {
-
 
                 script {
 
-
                     javaServices.each { service ->
-
 
                         dir(service) {
 
-
                             sh '''
-
                             mvn clean package -DskipTests
-
                             '''
-
 
                         }
 
-
                     }
 
-
                 }
-
 
             }
 
         }
-
-
 
 
         stage('Build Python Service') {
 
-
             steps {
-
 
                 dir(pythonService) {
 
-
                     sh '''
-
                     python3 -m venv venv
-
                     . venv/bin/activate
-
                     pip install --upgrade pip
-
                     pip install -r requirements.txt
-
                     '''
 
-
                 }
-
 
             }
 
         }
 
 
-
-
-
         stage('Run Tests') {
 
-
             steps {
-
 
                 script {
 
@@ -212,6 +169,7 @@ pipeline {
 
                         fi
 
+
                         '''
 
 
@@ -220,61 +178,36 @@ pipeline {
 
                 }
 
-
             }
 
         }
-
-
-
 
 
         stage('SonarQube Analysis') {
 
-
             steps {
 
-
-                echo "SonarQube integration will be configured here"
-
+                echo "SonarQube configuration pending"
 
             }
 
-
         }
-
-
 
 
         stage('Quality Gate') {
 
-
             steps {
 
-
-                timeout(time: 5, unit: 'MINUTES') {
-
-
-                    waitForQualityGate abortPipeline: true
-
-
-                }
-
+                echo "Quality gate will run after SonarQube setup"
 
             }
-
 
         }
 
 
-
-
-
         stage('Build Docker Images') {
 
-
             steps {
-
 
                 script {
 
@@ -287,11 +220,8 @@ pipeline {
 
                             sh """
 
-
                             docker build \
-
                             -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
-
 
                             """
 
@@ -308,11 +238,8 @@ pipeline {
 
                         sh """
 
-
                         docker build \
-
                         -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
-
 
                         """
 
@@ -322,67 +249,43 @@ pipeline {
 
                 }
 
-
             }
 
         }
-
-
-
 
 
         stage('Login To AWS ECR') {
 
-
             steps {
-
 
                 withCredentials([
 
-
                     [$class: 'AmazonWebServicesCredentialsBinding',
-
-                    credentialsId: 'aws-creds']
-
+                     credentialsId: 'aws-creds']
 
                 ]) {
 
 
-
                     sh '''
 
-
                     aws ecr get-login-password \
-
                     --region ${AWS_REGION} | \
-
                     docker login \
-
                     --username AWS \
-
                     --password-stdin ${ECR_REGISTRY}
-
 
                     '''
 
-
                 }
 
-
             }
-
 
         }
 
 
-
-
-
         stage('Push Docker Images') {
 
-
             steps {
-
 
                 script {
 
@@ -392,11 +295,8 @@ pipeline {
 
                         sh """
 
-
                         docker push \
-
                         ${ECR_REGISTRY}/${service}:${IMAGE_TAG}
-
 
                         """
 
@@ -407,104 +307,55 @@ pipeline {
 
                     sh """
 
-
                     docker push \
-
                     ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
-
 
                     """
 
 
                 }
 
-
             }
-
 
         }
 
 
-
-
-
-        stage('Deploy Using Helm') {
-
+        stage('Deploy With Helm') {
 
             steps {
 
-
                 sh """
 
-
                 helm upgrade --install ${HELM_RELEASE} \
-
                 ${HELM_CHART} \
-
                 --namespace hospital \
-
                 --create-namespace \
-
                 --set image.tag=${IMAGE_TAG}
-
 
                 """
 
-
             }
 
-
         }
-
-
-
 
 
         stage('Verify Deployment') {
 
-
             steps {
 
-
                 sh '''
-
 
                 kubectl get pods -n hospital
 
                 kubectl get services -n hospital
 
-
                 '''
 
-
             }
 
-
         }
-
-
-
-
-        stage('Smoke Test') {
-
-
-            steps {
-
-
-                echo "Application smoke test completed"
-
-
-            }
-
-
-        }
-
-
 
     }
-
-
-
 
 
     post {
@@ -512,34 +363,24 @@ pipeline {
 
         always {
 
-
             cleanWs()
 
-
         }
-
 
 
         success {
 
-
-            echo "Hospital Management Application deployed successfully"
-
+            echo "Hospital Management application deployed successfully"
 
         }
-
 
 
         failure {
 
-
-            echo "Hospital Management Pipeline Failed"
-
+            echo "Hospital Management pipeline failed"
 
         }
 
-
     }
-
 
 }
