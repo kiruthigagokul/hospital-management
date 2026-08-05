@@ -16,15 +16,6 @@ pipeline {
     agent any
 
 
- tools {
-
-        jdk 'JDK21'
-
-        maven 'Maven'
-
-    }
-
-
 
     environment {
 
@@ -35,6 +26,12 @@ pipeline {
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
         IMAGE_TAG = "${BUILD_NUMBER}"
+
+        JAVA_HOME = "/usr/lib/jvm/java-21-openjdk-amd64"
+
+       MAVEN_HOME = "/usr/share/maven"
+
+       PATH = "${JAVA_HOME}/bin:${MAVEN_HOME}/bin:${env.PATH}"
 
         HELM_RELEASE = "hospital-management"
 
