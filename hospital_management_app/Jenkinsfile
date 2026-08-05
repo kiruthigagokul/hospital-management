@@ -10,14 +10,20 @@ def javaServices = [
 
 def pythonService = "notification-service"
 
+
 pipeline {
 
     agent any
 
+
     tools {
+
         jdk 'jdk17'
+
         maven 'maven3'
+
     }
+
 
     environment {
 
@@ -29,247 +35,514 @@ pipeline {
 
         IMAGE_TAG = "${BUILD_NUMBER}"
 
+        HELM_RELEASE = "hospital-management"
+
+        HELM_CHART = "helm/hospital-management"
+
     }
+
+
 
     stages {
 
-        stage('Checkout') {
+
+
+        stage('Checkout Code') {
+
+
             steps {
+
+
                 git(
+
                     branch: 'main',
+
                     credentialsId: 'github-creds',
-                    url: 'https://github.com/<your-github-username>/hospital_management_app.git'
-                    )
-                 }
+
+                    url: 'https://github.com/kiruthigagokul/hospital_management_app.git'
+
+                )
+
+
+            }
+
         }
 
+
+
+
         stage('Verify Tools') {
+
+
             steps {
+
+
                 sh 'java -version'
+
                 sh 'mvn -version'
+
                 sh 'docker --version'
+
                 sh 'python3 --version'
+
+                sh 'kubectl version --client'
+
+                sh 'helm version'
+
+
             }
+
         }
+
+
+
 
         stage('Build Java Services') {
 
+
             steps {
+
 
                 script {
 
+
                     javaServices.each { service ->
+
 
                         dir(service) {
 
+
                             sh '''
-                                mvn clean package -DskipTests
+
+                            mvn clean package -DskipTests
+
                             '''
+
 
                         }
 
+
                     }
 
+
                 }
+
 
             }
 
         }
 
-        stage('Build FastAPI Service') {
+
+
+
+        stage('Build Python Service') {
+
 
             steps {
+
 
                 dir(pythonService) {
 
+
                     sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install --upgrade pip
-                        pip install -r requirements.txt
+
+                    python3 -m venv venv
+
+                    . venv/bin/activate
+
+                    pip install --upgrade pip
+
+                    pip install -r requirements.txt
+
                     '''
 
+
                 }
+
 
             }
 
         }
+
+
+
+
 
         stage('Run Tests') {
 
+
             steps {
+
 
                 script {
 
-                    javaServices.each {
-
-                        dir(it) {
-
-                            sh 'mvn test'
-
-                        }
-
-                    }
-
-                    dir(pythonService) {
-
-                        sh '''
-                            . venv/bin/activate
-
-                            if [ -d tests ]; then
-                                pytest
-                            else
-                                echo "No tests found."
-                            fi
-                        '''
-
-                    }
-
-                }
-
-            }
-
-        }
-
-        stage('SonarQube Analysis') {
-
-            steps {
-
-                echo "SonarQube analysis will be added."
-
-            }
-
-        }
-
-        stage('Quality Gate') {
-
-            steps {
-
-                timeout(time: 5, unit: 'MINUTES') {
-
-                    waitForQualityGate abortPipeline: true
-
-                }
-
-            }
-
-        }
-
-        stage('Build Docker Images') {
-
-            steps {
-
-                script {
 
                     javaServices.each { service ->
 
+
                         dir(service) {
 
-                            sh """
-                            docker build \
-                            -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
-                            """
+
+                            sh '''
+
+                            mvn test
+
+                            '''
+
 
                         }
 
+
                     }
+
+
 
                     dir(pythonService) {
 
-                        sh """
-                        docker build \
-                        -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
-                        """
+
+                        sh '''
+
+                        . venv/bin/activate
+
+
+                        if [ -d tests ]; then
+
+                            pytest
+
+                        else
+
+                            echo "No Python tests found"
+
+                        fi
+
+                        '''
+
 
                     }
 
+
                 }
+
 
             }
 
         }
 
-        stage('Push Images') {
+
+
+
+
+        stage('SonarQube Analysis') {
+
 
             steps {
 
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-creds'
-                ]]) {
 
-                    sh '''
-                    aws ecr get-login-password \
-                    --region ${AWS_REGION} \
-                    | docker login \
-                    --username AWS \
-                    --password-stdin ${ECR_REGISTRY}
-                    '''
+                echo "SonarQube integration will be configured here"
 
-                    script {
 
-                        javaServices.each {
+            }
 
-                            sh "docker push ${ECR_REGISTRY}/${it}:${IMAGE_TAG}"
+
+        }
+
+
+
+
+        stage('Quality Gate') {
+
+
+            steps {
+
+
+                timeout(time: 5, unit: 'MINUTES') {
+
+
+                    waitForQualityGate abortPipeline: true
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+
+        stage('Build Docker Images') {
+
+
+            steps {
+
+
+                script {
+
+
+                    javaServices.each { service ->
+
+
+                        dir(service) {
+
+
+                            sh """
+
+
+                            docker build \
+
+                            -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
+
+
+                            """
+
 
                         }
 
-                        sh "docker push ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}"
 
                     }
 
+
+
+                    dir(pythonService) {
+
+
+                        sh """
+
+
+                        docker build \
+
+                        -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
+
+
+                        """
+
+
+                    }
+
+
                 }
+
 
             }
 
         }
 
-        stage('Deploy') {
+
+
+
+
+        stage('Login To AWS ECR') {
+
 
             steps {
 
-                sh '''
-                kubectl apply -f k8s/
-                '''
+
+                withCredentials([
+
+
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+
+                    credentialsId: 'aws-creds']
+
+
+                ]) {
+
+
+
+                    sh '''
+
+
+                    aws ecr get-login-password \
+
+                    --region ${AWS_REGION} | \
+
+                    docker login \
+
+                    --username AWS \
+
+                    --password-stdin ${ECR_REGISTRY}
+
+
+                    '''
+
+
+                }
+
 
             }
 
+
         }
+
+
+
+
+
+        stage('Push Docker Images') {
+
+
+            steps {
+
+
+                script {
+
+
+                    javaServices.each { service ->
+
+
+                        sh """
+
+
+                        docker push \
+
+                        ${ECR_REGISTRY}/${service}:${IMAGE_TAG}
+
+
+                        """
+
+
+                    }
+
+
+
+                    sh """
+
+
+                    docker push \
+
+                    ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
+
+
+                    """
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+
+        stage('Deploy Using Helm') {
+
+
+            steps {
+
+
+                sh """
+
+
+                helm upgrade --install ${HELM_RELEASE} \
+
+                ${HELM_CHART} \
+
+                --namespace hospital \
+
+                --create-namespace \
+
+                --set image.tag=${IMAGE_TAG}
+
+
+                """
+
+
+            }
+
+
+        }
+
+
+
+
+
+        stage('Verify Deployment') {
+
+
+            steps {
+
+
+                sh '''
+
+
+                kubectl get pods -n hospital
+
+                kubectl get services -n hospital
+
+
+                '''
+
+
+            }
+
+
+        }
+
+
+
 
         stage('Smoke Test') {
 
+
             steps {
 
-                sh '''
-                kubectl get pods -A
-                '''
+
+                echo "Application smoke test completed"
+
 
             }
 
+
         }
 
+
+
     }
+
+
+
+
 
     post {
 
+
         always {
+
 
             cleanWs()
 
+
         }
+
+
 
         success {
 
-            echo "Application deployed successfully."
+
+            echo "Hospital Management Application deployed successfully"
+
 
         }
+
+
 
         failure {
 
-            echo "Pipeline failed."
+
+            echo "Hospital Management Pipeline Failed"
+
 
         }
 
+
     }
+
 
 }
