@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: notification-service
+
+  template:
+    metadata:
+      labels:
+        app: notification-service
+
+    spec:
+      initContainers:
+
+      - name: wait-for-mysql
+
+        image: busybox:1.36
+
+        command:
+          - sh
+          - -c
+          - |
+            until nc -z mysql 3306;
+            do
+              echo "Waiting for MySQL..."
+              sleep 5
+            done
+      containers:
+
+        - name: notification-service
+
+          image: "{{ .Values.registry }}/{{ index .Values.services "notification-service" "image" }}:{{ index .Values.services "notification-service" "tag" }}"
+
+          ports:
+            - containerPort: {{ index .Values.services "notification-service" "port" }}
+
+          envFrom:
+            - secretRef:
+                name: hospital-db-secret
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+
+spec:
+  selector:
+    app: notification-service
+
+  ports:
+    - port: {{ index .Values.services "notification-service" "port" }}
+      targetPort: {{ index .Values.services "notification-service" "port" }}
+
+  type: ClusterIP

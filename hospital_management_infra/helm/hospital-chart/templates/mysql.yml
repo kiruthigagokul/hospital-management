@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: mysql
+
+spec:
+
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: mysql
+
+  template:
+
+    metadata:
+      labels:
+        app: mysql
+
+    spec:
+
+      containers:
+
+      - name: mysql
+
+        image: "{{ .Values.mysql.image }}:{{ .Values.mysql.tag }}"
+
+        ports:
+
+        - containerPort: 3306
+
+
+        env:
+
+        - name: MYSQL_ROOT_PASSWORD
+
+          valueFrom:
+
+            secretKeyRef:
+
+              name: hospital-db-secret
+
+              key: MYSQL_ROOT_PASSWORD
+
+
+        - name: MYSQL_DATABASE
+
+          value: "{{ .Values.mysql.database }}"
+
+
+        volumeMounts:
+
+        - name: mysql-storage
+
+          mountPath: /var/lib/mysql
+
+
+        - name: mysql-init
+
+          mountPath: /docker-entrypoint-initdb.d
+
+
+      volumes:
+
+      - name: mysql-storage
+
+        emptyDir: {}
+
+
+      - name: mysql-init
+
+        configMap:
+
+          name: mysql-init-script
+
+---
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: mysql
+
+spec:
+
+  selector:
+
+    app: mysql
+
+
+  ports:
+
+  - port: 3306
+
+    targetPort: 3306

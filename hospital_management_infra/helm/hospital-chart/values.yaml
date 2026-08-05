@@ -1,0 +1,61 @@
+registry: 897355252117.dkr.ecr.ap-south-1.amazonaws.com
+
+services:
+
+  auth-service:
+    image: auth-service
+    tag: v1
+    port: 8081
+
+  patient-service:
+    image: patient-service
+    tag: v1
+    port: 8082
+
+  doctor-service:
+    image: doctor-service
+    tag: v1
+    port: 8083
+
+  appointment-service:
+    image: appointment-service
+    tag: v1
+    port: 8084
+
+  medical-record-service:
+    image: medical-record-service
+    tag: v1
+    port: 8085
+
+  billing-service:
+    image: billing-service
+    tag: v1
+    port: 8086
+
+  notification-service:
+    image: notification-service
+    tag: v1
+    port: 8000
+
+  api-gateway:
+    image: api-gateway
+    tag: v3
+    port: 8080
+
+
+mysql:
+
+  image: mysql
+  tag: "8.0"
+
+  port: 3306
+
+  database: hospitaldb
+
+  username: root
+
+ingress:
+
+  enabled: true
+
+  host: hospital.example.com

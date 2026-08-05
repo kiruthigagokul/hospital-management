@@ -1,66 +1,52 @@
-resource "aws_iam_role" "eks_cluster_role" {
-  name = "hospital-eks-cluster-role"
+#######################################
+# AWS Load Balancer Controller IAM Role
+#######################################
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+data "aws_iam_policy_document" "alb_assume_role" {
 
-    Statement = [{
-      Effect = "Allow"
+  statement {
 
-      Principal = {
-        Service = "eks.amazonaws.com"
-      }
+    effect = "Allow"
 
-      Action = "sts:AssumeRole"
-    }]
-  })
+    principals {
+      type = "Federated"
+
+      identifiers = [
+        var.oidc_provider_arn
+      ]
+    }
+
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+
+    condition {
+
+      test = "StringEquals"
+
+      variable = "${var.oidc_provider}:sub"
+
+      values = [
+        "system:serviceaccount:kube-system:aws-load-balancer-controller"
+      ]
+    }
+  }
 }
-resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
 
-  role = aws_iam_role.eks_cluster_role.name
 
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+resource "aws_iam_role" "alb_controller" {
+
+  name = "${var.cluster_name}-alb-controller-role"
+
+  assume_role_policy = data.aws_iam_policy_document.alb_assume_role.json
+
 }
-resource "aws_iam_role" "eks_node_role" {
 
-  name = "hospital-eks-node-role"
 
-  assume_role_policy = jsonencode({
+resource "aws_iam_role_policy_attachment" "alb_controller" {
 
-    Version = "2012-10-17"
+  role = aws_iam_role.alb_controller.name
 
-    Statement = [{
+  policy_arn = "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"
 
-      Effect = "Allow"
-
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-
-      Action = "sts:AssumeRole"
-
-    }]
-  })
-}
-resource "aws_iam_role_policy_attachment" "worker_node_policy" {
-
-  role = aws_iam_role.eks_node_role.name
-
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-}
-resource "aws_iam_role_policy_attachment" "ecr_readonly" {
-
-  role = aws_iam_role.eks_node_role.name
-
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-resource "aws_iam_role_policy_attachment" "cni_policy" {
-
-  role = aws_iam_role.eks_node_role.name
-
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-resource "aws_iam_role_policy_attachment" "ebs_csi_policy" {
-  role       = aws_iam_role.eks_node_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }

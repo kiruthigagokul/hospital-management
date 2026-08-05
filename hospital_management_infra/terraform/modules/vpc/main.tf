@@ -1,145 +1,173 @@
-
-########################################
+#######################################
 # VPC
-########################################
+#######################################
 
-resource "aws_vpc" "main" {
+resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
   tags = {
-    Name = "hospital-vpc"
+    Name = var.vpc_name
   }
 }
 
-########################################
+#######################################
 # Internet Gateway
-########################################
+#######################################
 
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
 
   tags = {
-    Name = "hospital-igw"
+    Name = "${var.vpc_name}-igw"
   }
 }
 
-########################################
+#######################################
 # Public Subnet 1
-########################################
+#######################################
 
 resource "aws_subnet" "public_1" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "ap-south-1a"
+  vpc_id = aws_vpc.this.id
+
+  cidr_block        = var.public_subnet_cidrs[0]
+  availability_zone = var.availability_zones[0]
+
   map_public_ip_on_launch = true
 
   tags = {
-    Name                     = "public-subnet-1"
-    "kubernetes.io/role/elb" = "1"
+    Name = "hospital-public-subnet-1"
+
+    "kubernetes.io/role/elb"             = "1"
+    "kubernetes.io/cluster/hospital-eks" = "shared"
   }
 }
 
-########################################
+#######################################
 # Public Subnet 2
-########################################
+#######################################
 
 resource "aws_subnet" "public_2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "ap-south-1b"
+  vpc_id = aws_vpc.this.id
+
+  cidr_block        = var.public_subnet_cidrs[1]
+  availability_zone = var.availability_zones[1]
+
   map_public_ip_on_launch = true
 
   tags = {
-    Name                     = "public-subnet-2"
-    "kubernetes.io/role/elb" = "1"
+    Name = "hospital-public-subnet-2"
+
+    "kubernetes.io/role/elb"             = "1"
+    "kubernetes.io/cluster/hospital-eks" = "shared"
   }
 }
 
-########################################
+#######################################
 # Private Subnet 1
-########################################
+#######################################
 
 resource "aws_subnet" "private_1" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.11.0/24"
-  availability_zone = "ap-south-1a"
+  vpc_id = aws_vpc.this.id
+
+  cidr_block        = var.private_subnet_cidrs[0]
+  availability_zone = var.availability_zones[0]
 
   tags = {
-    Name                              = "private-subnet-1"
-    "kubernetes.io/role/internal-elb" = "1"
+    Name = "hospital-private-subnet-1"
+
+    "kubernetes.io/role/internal-elb"    = "1"
+    "kubernetes.io/cluster/hospital-eks" = "shared"
   }
 }
 
-########################################
+#######################################
 # Private Subnet 2
-########################################
+#######################################
 
 resource "aws_subnet" "private_2" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.12.0/24"
-  availability_zone = "ap-south-1b"
+  vpc_id = aws_vpc.this.id
+
+  cidr_block        = var.private_subnet_cidrs[1]
+  availability_zone = var.availability_zones[1]
 
   tags = {
-    Name                              = "private-subnet-2"
-    "kubernetes.io/role/internal-elb" = "1"
+    Name = "hospital-private-subnet-2"
+
+    "kubernetes.io/role/internal-elb"    = "1"
+    "kubernetes.io/cluster/hospital-eks" = "shared"
   }
 }
 
-########################################
+#######################################
 # Elastic IP
-########################################
+#######################################
 
 resource "aws_eip" "nat" {
   domain = "vpc"
-
-  depends_on = [
-    aws_internet_gateway.igw
-  ]
 
   tags = {
     Name = "hospital-nat-eip"
   }
 }
 
-########################################
+#######################################
 # NAT Gateway
-########################################
+#######################################
 
-resource "aws_nat_gateway" "nat" {
+resource "aws_nat_gateway" "this" {
   allocation_id = aws_eip.nat.id
   subnet_id     = aws_subnet.public_1.id
 
   depends_on = [
-    aws_internet_gateway.igw
+    aws_internet_gateway.this
   ]
 
   tags = {
-    Name = "hospital-nat"
+    Name = "hospital-nat-gateway"
   }
 }
 
-########################################
+#######################################
 # Public Route Table
-########################################
+#######################################
 
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
+  vpc_id = aws_vpc.this.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
+
+    gateway_id = aws_internet_gateway.this.id
   }
 
   tags = {
-    Name = "public-route-table"
+    Name = "hospital-public-route-table"
   }
 }
 
-########################################
+#######################################
+# Private Route Table
+#######################################
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+
+    nat_gateway_id = aws_nat_gateway.this.id
+  }
+
+  tags = {
+    Name = "hospital-private-route-table"
+  }
+}
+
+#######################################
 # Public Route Table Associations
-########################################
+#######################################
 
 resource "aws_route_table_association" "public_1" {
   subnet_id      = aws_subnet.public_1.id
@@ -151,26 +179,9 @@ resource "aws_route_table_association" "public_2" {
   route_table_id = aws_route_table.public.id
 }
 
-########################################
-# Private Route Table
-########################################
-
-resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat.id
-  }
-
-  tags = {
-    Name = "private-route-table"
-  }
-}
-
-########################################
+#######################################
 # Private Route Table Associations
-########################################
+#######################################
 
 resource "aws_route_table_association" "private_1" {
   subnet_id      = aws_subnet.private_1.id

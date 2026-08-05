@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medical-record-service
+  labels:
+    app: medical-record-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: medical-record-service
+
+  template:
+    metadata:
+      labels:
+        app: medical-record-service
+
+    spec:
+      containers:
+
+        - name: medical-record-service
+
+          image: "{{ .Values.registry }}/{{ index .Values.services "medical-record-service" "image" }}:{{ index .Values.services "medical-record-service" "tag" }}"
+
+          ports:
+            - containerPort: {{ index .Values.services "medical-record-service" "port" }}
+
+          envFrom:
+            - secretRef:
+                name: hospital-db-secret
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: medical-record-service
+
+spec:
+  selector:
+    app: medical-record-service
+
+  ports:
+    - port: {{ index .Values.services "medical-record-service" "port" }}
+      targetPort: {{ index .Values.services "medical-record-service" "port" }}
+
+  type: ClusterIP

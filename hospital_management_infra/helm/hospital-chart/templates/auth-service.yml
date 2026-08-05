@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  labels:
+    app: auth-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: auth-service
+
+  template:
+    metadata:
+      labels:
+        app: auth-service
+
+    spec:
+      containers:
+        - name: auth-service
+
+          image: "{{ .Values.registry }}/{{ index .Values.services "auth-service" "image" }}:{{ index .Values.services "auth-service" "tag" }}"
+
+          ports:
+            - containerPort: {{ index .Values.services "auth-service" "port" }}
+
+          env:
+
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://mysql:3306/hospital_auth_db
+
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-db-secret
+                  key: DB_USER
+
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-db-secret
+                  key: DB_PASSWORD
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+
+spec:
+  selector:
+    app: auth-service
+
+  ports:
+    - port: {{ index .Values.services "auth-service" "port" }}
+      targetPort: {{ index .Values.services "auth-service" "port" }}
+
+  type: ClusterIP

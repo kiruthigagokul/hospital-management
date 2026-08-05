@@ -1,37 +1,27 @@
-########################################
-# VPC Outputs
-########################################
-
 output "vpc_id" {
-  description = "VPC ID"
-  value       = module.vpc.vpc_id
+  value = module.vpc.vpc_id
 }
 
 output "public_subnet_ids" {
-  description = "Public Subnet IDs"
-  value       = module.vpc.public_subnet_ids
+  value = module.vpc.public_subnet_ids
 }
 
 output "private_subnet_ids" {
-  description = "Private Subnet IDs"
-  value       = module.vpc.private_subnet_ids
+  value = module.vpc.private_subnet_ids
 }
 
-########################################
-# EKS Outputs
-########################################
+output "internet_gateway_id" {
+  value = module.vpc.internet_gateway_id
+}
+
+output "nat_gateway_id" {
+  value = module.vpc.nat_gateway_id
+}
 
 output "cluster_name" {
-  description = "EKS Cluster Name"
-  value       = module.eks.cluster_name
+  value = module.eks.cluster_name
 }
 
 output "cluster_endpoint" {
-  description = "EKS Cluster Endpoint"
-  value       = module.eks.cluster_endpoint
-}
-
-output "cluster_certificate_authority_data" {
-  description = "EKS Cluster CA Data"
-  value       = module.eks.cluster_certificate_authority_data
+  value = module.eks.cluster_endpoint
 }

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  labels:
+    app: api-gateway
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: api-gateway
+
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+
+    spec:
+      containers:
+
+        - name: api-gateway
+
+          image: "{{ .Values.registry }}/{{ index .Values.services "api-gateway" "image" }}:{{ index .Values.services "api-gateway" "tag" }}"
+
+          ports:
+            - containerPort: {{ index .Values.services "api-gateway" "port" }}
+
+          envFrom:
+            - secretRef:
+                name: hospital-db-secret
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+
+spec:
+  selector:
+    app: api-gateway
+
+  ports:
+    - port: {{ index .Values.services "api-gateway" "port" }}
+      targetPort: {{ index .Values.services "api-gateway" "port" }}
+
+  type: ClusterIP

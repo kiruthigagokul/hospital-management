@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+  labels:
+    app: patient-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: patient-service
+
+  template:
+    metadata:
+      labels:
+        app: patient-service
+
+    spec:
+      containers:
+
+        - name: patient-service
+
+          image: "{{ .Values.registry }}/{{ index .Values.services "patient-service" "image" }}:{{ index .Values.services "patient-service" "tag" }}"
+
+          ports:
+            - containerPort: {{ index .Values.services "patient-service" "port" }}
+
+          envFrom:
+            - secretRef:
+                name: hospital-db-secret
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: patient-service
+
+spec:
+  selector:
+    app: patient-service
+
+  ports:
+    - port: {{ index .Values.services "patient-service" "port" }}
+      targetPort: {{ index .Values.services "patient-service" "port" }}
+
+  type: ClusterIP

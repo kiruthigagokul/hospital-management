@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+  labels:
+    app: appointment-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: appointment-service
+
+  template:
+    metadata:
+      labels:
+        app: appointment-service
+
+    spec:
+      containers:
+
+        - name: appointment-service
+
+          image: "{{ .Values.registry }}/{{ index .Values.services "appointment-service" "image" }}:{{ index .Values.services "appointment-service" "tag" }}"
+
+          ports:
+            - containerPort: {{ index .Values.services "appointment-service" "port" }}
+
+          envFrom:
+            - secretRef:
+                name: hospital-db-secret
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: appointment-service
+
+spec:
+  selector:
+    app: appointment-service
+
+  ports:
+    - port: {{ index .Values.services "appointment-service" "port" }}
+      targetPort: {{ index .Values.services "appointment-service" "port" }}
+
+  type: ClusterIP
