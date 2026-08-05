@@ -16,13 +16,14 @@ pipeline {
     agent any
 
 
-    tools {
+ tools {
 
-        jdk 'jdk17'
+        jdk 'JDK21'
 
-        maven 'maven3'
+        maven 'Maven'
 
     }
+
 
 
     environment {
