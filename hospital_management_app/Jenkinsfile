@@ -1,0 +1,275 @@
+def javaServices = [
+    "api-gateway",
+    "appointment-service",
+    "auth-service",
+    "billing-service",
+    "doctor-service",
+    "medical-record-service",
+    "patient-service"
+]
+
+def pythonService = "notification-service"
+
+pipeline {
+
+    agent any
+
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+
+    environment {
+
+        AWS_REGION = "ap-south-1"
+
+        AWS_ACCOUNT_ID = "897355252117"
+
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git(
+                    branch: 'main',
+                    credentialsId: 'github-creds',
+                    url: 'https://github.com/<your-github-username>/hospital_management_app.git'
+                    )
+                 }
+        }
+
+        stage('Verify Tools') {
+            steps {
+                sh 'java -version'
+                sh 'mvn -version'
+                sh 'docker --version'
+                sh 'python3 --version'
+            }
+        }
+
+        stage('Build Java Services') {
+
+            steps {
+
+                script {
+
+                    javaServices.each { service ->
+
+                        dir(service) {
+
+                            sh '''
+                                mvn clean package -DskipTests
+                            '''
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage('Build FastAPI Service') {
+
+            steps {
+
+                dir(pythonService) {
+
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
+                    '''
+
+                }
+
+            }
+
+        }
+
+        stage('Run Tests') {
+
+            steps {
+
+                script {
+
+                    javaServices.each {
+
+                        dir(it) {
+
+                            sh 'mvn test'
+
+                        }
+
+                    }
+
+                    dir(pythonService) {
+
+                        sh '''
+                            . venv/bin/activate
+
+                            if [ -d tests ]; then
+                                pytest
+                            else
+                                echo "No tests found."
+                            fi
+                        '''
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage('SonarQube Analysis') {
+
+            steps {
+
+                echo "SonarQube analysis will be added."
+
+            }
+
+        }
+
+        stage('Quality Gate') {
+
+            steps {
+
+                timeout(time: 5, unit: 'MINUTES') {
+
+                    waitForQualityGate abortPipeline: true
+
+                }
+
+            }
+
+        }
+
+        stage('Build Docker Images') {
+
+            steps {
+
+                script {
+
+                    javaServices.each { service ->
+
+                        dir(service) {
+
+                            sh """
+                            docker build \
+                            -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
+                            """
+
+                        }
+
+                    }
+
+                    dir(pythonService) {
+
+                        sh """
+                        docker build \
+                        -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
+                        """
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage('Push Images') {
+
+            steps {
+
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-creds'
+                ]]) {
+
+                    sh '''
+                    aws ecr get-login-password \
+                    --region ${AWS_REGION} \
+                    | docker login \
+                    --username AWS \
+                    --password-stdin ${ECR_REGISTRY}
+                    '''
+
+                    script {
+
+                        javaServices.each {
+
+                            sh "docker push ${ECR_REGISTRY}/${it}:${IMAGE_TAG}"
+
+                        }
+
+                        sh "docker push ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}"
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage('Deploy') {
+
+            steps {
+
+                sh '''
+                kubectl apply -f k8s/
+                '''
+
+            }
+
+        }
+
+        stage('Smoke Test') {
+
+            steps {
+
+                sh '''
+                kubectl get pods -A
+                '''
+
+            }
+
+        }
+
+    }
+
+    post {
+
+        always {
+
+            cleanWs()
+
+        }
+
+        success {
+
+            echo "Application deployed successfully."
+
+        }
+
+        failure {
+
+            echo "Pipeline failed."
+
+        }
+
+    }
+
+}
