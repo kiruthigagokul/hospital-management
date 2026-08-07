@@ -131,8 +131,12 @@ pipeline {
                 dir("hospital_management_app/${service}") {
 
                     sh '''
-                   mvn test -Dsurefire.printSummary=true -e
-                    '''
+                        mvn test || {
+                        echo "==== TEST REPORTS ===="
+                        find target/surefire-reports -type f -exec cat {} \\;
+                        exit 1
+                        }
+                        '''
 
                 }
 
