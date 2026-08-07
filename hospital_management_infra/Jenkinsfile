@@ -1,4 +1,4 @@
-
+```groovy
 pipeline {
 
     agent any
@@ -63,6 +63,24 @@ pipeline {
             }
         }
 
+        stage('Show Infrastructure Files') {
+
+            steps {
+
+                sh '''
+                    echo "===== Workspace ====="
+                    pwd
+
+                    echo "===== Repository Contents ====="
+                    ls -la
+
+                    echo "===== Infrastructure Directory ====="
+                    ls -la hospital_management_infra
+                '''
+
+            }
+        }
+
         stage('Terraform Init') {
 
             when {
@@ -73,11 +91,17 @@ pipeline {
 
             steps {
 
-                sh '''
-                    echo "===== Terraform Init ====="
-                    terraform --version
-                    terraform init
-                '''
+                dir('hospital_management_infra') {
+
+                    sh '''
+                        echo "===== Terraform Init ====="
+
+                        terraform --version
+
+                        terraform init
+                    '''
+
+                }
 
             }
         }
@@ -92,10 +116,15 @@ pipeline {
 
             steps {
 
-                sh '''
-                    echo "===== Terraform Validate ====="
-                    terraform validate
-                '''
+                dir('hospital_management_infra') {
+
+                    sh '''
+                        echo "===== Terraform Validate ====="
+
+                        terraform validate
+                    '''
+
+                }
 
             }
         }
@@ -110,10 +139,15 @@ pipeline {
 
             steps {
 
-                sh '''
-                    echo "===== Terraform Plan ====="
-                    terraform plan -out=tfplan
-                '''
+                dir('hospital_management_infra') {
+
+                    sh '''
+                        echo "===== Terraform Plan ====="
+
+                        terraform plan -out=tfplan
+                    '''
+
+                }
 
             }
         }
@@ -128,10 +162,15 @@ pipeline {
 
             steps {
 
-                sh '''
-                    echo "===== Terraform Apply ====="
-                    terraform apply -auto-approve
-                '''
+                dir('hospital_management_infra') {
+
+                    sh '''
+                        echo "===== Terraform Apply ====="
+
+                        terraform apply -auto-approve
+                    '''
+
+                }
 
             }
         }
@@ -163,10 +202,15 @@ pipeline {
 
             steps {
 
-                sh '''
-                    echo "===== Terraform Destroy ====="
-                    terraform destroy -auto-approve
-                '''
+                dir('hospital_management_infra') {
+
+                    sh '''
+                        echo "===== Terraform Destroy ====="
+
+                        terraform destroy -auto-approve
+                    '''
+
+                }
 
             }
         }
@@ -176,10 +220,10 @@ pipeline {
 
         always {
 
-            echo '===== Infrastructure Pipeline Finished ====='
+            echo "===== Infrastructure Pipeline Finished ====="
 
         }
 
     }
 }
-
+```
