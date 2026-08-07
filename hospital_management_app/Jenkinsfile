@@ -79,23 +79,19 @@ pipeline {
         }
 
 
-        stage('Build Java Services') {
+       stage('Build Java Services') {
 
-            steps {
+    steps {
 
-                script {
+        script {
 
-                    javaServices.each { service ->
+            javaServices.each { service ->
 
-                        dir(service) {
+                dir("hospital_management_app/${service}") {
 
-                            sh '''
-                            mvn clean package -DskipTests
-                            '''
-
-                        }
-
-                    }
+                    sh '''
+                    mvn clean package -DskipTests
+                    '''
 
                 }
 
@@ -103,7 +99,8 @@ pipeline {
 
         }
 
-
+    }
+}
         stage('Build Python Service') {
 
             steps {
