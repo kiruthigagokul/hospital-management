@@ -632,73 +632,7 @@ pipeline {
 
 
 
-        stage('Deploy With Helm') {
-
-
-
-            steps {
-
-
-
-                sh """
-
-
-                helm upgrade --install ${HELM_RELEASE} \
-
-                ${HELM_CHART} \
-
-                --namespace hospital \
-
-                --create-namespace \
-
-                --set image.tag=${IMAGE_TAG}
-
-
-
-                """
-
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-
-
-        stage('Verify Deployment') {
-
-
-
-            steps {
-
-
-
-                sh '''
-
-
-
-                kubectl get pods -n hospital
-
-
-                kubectl get services -n hospital
-
-
-
-                '''
-
-
-            }
-
-
-        }
-
+       
 
 
 
@@ -711,35 +645,7 @@ pipeline {
 
 
 
-    post {
-
-
-
-        success {
-
-
-
-            echo "Hospital Management deployment successful"
-
-
-
-        }
-
-
-
-        failure {
-
-
-
-            echo "Hospital Management pipeline failed"
-
-
-
-        }
-
-
-
-    }
+    
 
 
 
