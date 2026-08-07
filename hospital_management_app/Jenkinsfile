@@ -1,4 +1,5 @@
 def javaServices = [
+
     "api-gateway",
     "appointment-service",
     "auth-service",
@@ -6,6 +7,7 @@ def javaServices = [
     "doctor-service",
     "medical-record-service",
     "patient-service"
+
 ]
 
 def pythonService = "notification-service"
@@ -50,9 +52,13 @@ pipeline {
             steps {
 
                 git(
+
                     branch: 'main',
+
                     credentialsId: 'github-creds',
+
                     url: 'https://github.com/kiruthigagokul/hospital-management.git'
+
                 )
 
             }
@@ -60,18 +66,32 @@ pipeline {
         }
 
 
+
         stage('Verify Tools') {
 
             steps {
 
                 sh '''
+
+                echo "Checking tools"
+
                 java -version
+
                 mvn -version
+
                 docker --version
-                python3 --version
+
+                python3 --version || true
+
+                pip3 --version || true
+
                 kubectl version --client
+
                 helm version
+
                 aws --version
+
+
                 '''
 
             }
@@ -79,120 +99,14 @@ pipeline {
         }
 
 
-       stage('Build Java Services') {
-
-    steps {
-
-        script {
-
-            javaServices.each { service ->
-
-                dir("hospital_management_app/${service}") {
-
-                    sh '''
-                    mvn clean package -DskipTests
-                    '''
-
-                }
-
-            }
-
-        }
-
-    }
-}
-       stage('Build Python Service') {
-
-    steps {
-
-        dir("hospital_management_app/${pythonService}") {
-
-            sh '''
-            python3 -m venv venv
-            . venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
-            '''
-
-        }
-
-    }
-}
 
 
-        stage('Run Tests') {
 
-    steps {
+        stage('Build Java Services') {
 
-        script {
-
-            javaServices.each { service ->
-
-                dir("hospital_management_app/${service}") {
-
-                    sh '''
-                        mvn test || {
-                        echo "==== TEST REPORTS ===="
-                        find target/surefire-reports -type f -exec cat {} \\;
-                        exit 1
-                        }
-                        '''
-
-                }
-
-            }
-
-
-            dir("hospital_management_app/${pythonService}") {
-
-                sh '''
-
-                . venv/bin/activate
-
-                if [ -d tests ]; then
-
-                    pytest
-
-                else
-
-                    echo "No Python tests found"
-
-                fi
-
-                '''
-
-            }
-
-        }
-
-    }
-
-}
-        stage('SonarQube Analysis') {
 
             steps {
 
-                echo "SonarQube configuration pending"
-
-            }
-
-        }
-
-
-        stage('Quality Gate') {
-
-            steps {
-
-                echo "Quality gate will run after SonarQube setup"
-
-            }
-
-        }
-
-
-        stage('Build Docker Images') {
-
-            steps {
 
                 script {
 
@@ -200,13 +114,267 @@ pipeline {
                     javaServices.each { service ->
 
 
-                        dir(service) {
+                        dir("hospital_management_app/${service}") {
+
+
+                            sh '''
+
+                            echo "Building Java service"
+
+                            mvn clean package -DskipTests
+
+
+                            '''
+
+                        }
+
+
+                    }
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+        stage('Build Python Service') {
+
+
+            steps {
+
+
+                dir("hospital_management_app/${pythonService}") {
+
+
+                    sh '''
+
+                    echo "Installing Python dependencies"
+
+
+                    pip3 install --upgrade pip
+
+
+                    pip3 install -r requirements.txt
+
+
+                    '''
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+        stage('Run Tests') {
+
+
+            steps {
+
+
+                script {
+
+
+                    javaServices.each { service ->
+
+
+                        dir("hospital_management_app/${service}") {
+
+
+                            sh '''
+
+                            mvn test || {
+
+                            echo "==== TEST REPORTS ===="
+
+                            find target/surefire-reports -type f -exec cat {} \\;
+
+                            exit 1
+
+                            }
+
+
+                            '''
+
+                        }
+
+
+                    }
+
+
+
+
+
+                    dir("hospital_management_app/${pythonService}") {
+
+
+                        sh '''
+
+
+                        if [ -d tests ]; then
+
+
+                            pytest
+
+
+                        else
+
+
+                            echo "No Python tests found"
+
+
+                        fi
+
+
+                        '''
+
+
+                    }
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+        stage('SonarQube Analysis') {
+
+
+            steps {
+
+
+                withSonarQubeEnv('sonarqube') {
+
+
+                    script {
+
+
+                        javaServices.each { service ->
+
+
+                            dir("hospital_management_app/${service}") {
+
+
+                                sh '''
+
+
+                                mvn sonar:sonar \
+
+                                -Dsonar.projectKey=hospital-${service} \
+
+                                -Dsonar.host.url=$SONAR_HOST_URL \
+
+                                -Dsonar.token=$SONAR_AUTH_TOKEN
+
+
+                                '''
+
+
+                            }
+
+
+                        }
+
+
+                    }
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+        stage('Quality Gate') {
+
+
+            steps {
+
+
+                timeout(time: 10, unit: 'MINUTES') {
+
+
+                    waitForQualityGate abortPipeline: true
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+        stage('Build Docker Images') {
+
+
+            steps {
+
+
+                script {
+
+
+                    javaServices.each { service ->
+
+
+
+                        dir("hospital_management_app/${service}") {
+
 
 
                             sh """
 
+
+                            echo "Building Docker image ${service}"
+
+
+                            ls -la
+
+
                             docker build \
+
                             -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
+
 
                             """
 
@@ -218,13 +386,25 @@ pipeline {
 
 
 
-                    dir(pythonService) {
+
+
+                    dir("hospital_management_app/${pythonService}") {
+
 
 
                         sh """
 
+
+                        echo "Building Docker image ${pythonService}"
+
+
+                        ls -la
+
+
                         docker build \
+
                         -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
+
 
                         """
 
@@ -234,43 +414,72 @@ pipeline {
 
                 }
 
+
             }
 
+
         }
+
+
+
+
+
 
 
         stage('Login To AWS ECR') {
 
+
             steps {
+
 
                 withCredentials([
 
+
                     [$class: 'AmazonWebServicesCredentialsBinding',
-                     credentialsId: 'aws-creds']
+
+                    credentialsId: 'aws-creds']
+
 
                 ]) {
 
 
+
                     sh '''
 
+
                     aws ecr get-login-password \
+
                     --region ${AWS_REGION} | \
+
                     docker login \
+
                     --username AWS \
+
                     --password-stdin ${ECR_REGISTRY}
+
 
                     '''
 
+
                 }
 
+
             }
+
 
         }
 
 
+
+
+
+
+
         stage('Push Docker Images') {
 
+
             steps {
+
 
                 script {
 
@@ -280,8 +489,11 @@ pipeline {
 
                         sh """
 
+
                         docker push \
+
                         ${ECR_REGISTRY}/${service}:${IMAGE_TAG}
+
 
                         """
 
@@ -290,82 +502,120 @@ pipeline {
 
 
 
+
+
                     sh """
 
+
                     docker push \
+
                     ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
+
 
                     """
 
 
                 }
 
+
             }
 
+
         }
+
+
+
+
+
 
 
         stage('Deploy With Helm') {
 
+
             steps {
+
 
                 sh """
 
+
                 helm upgrade --install ${HELM_RELEASE} \
+
                 ${HELM_CHART} \
+
                 --namespace hospital \
+
                 --create-namespace \
+
                 --set image.tag=${IMAGE_TAG}
+
 
                 """
 
+
             }
 
+
         }
+
+
+
+
+
 
 
         stage('Verify Deployment') {
 
+
             steps {
+
 
                 sh '''
 
+
                 kubectl get pods -n hospital
+
 
                 kubectl get services -n hospital
 
+
                 '''
+
 
             }
 
+
         }
 
+
     }
+
+
+
 
 
     post {
 
 
-        always {
-
-            cleanWs()
-
-        }
-
-
         success {
+
 
             echo "Hospital Management application deployed successfully"
 
+
         }
+
 
 
         failure {
 
+
             echo "Hospital Management pipeline failed"
+
 
         }
 
+
     }
+
 
 }
