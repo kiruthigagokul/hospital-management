@@ -1,0 +1,186 @@
+
+```groovy
+pipeline {
+
+    agent any
+
+    parameters {
+
+        booleanParam(
+            name: 'RUN_INIT',
+            defaultValue: true,
+            description: 'Run Terraform Init'
+        )
+
+        booleanParam(
+            name: 'RUN_VALIDATE',
+            defaultValue: true,
+            description: 'Run Terraform Validate'
+        )
+
+        booleanParam(
+            name: 'RUN_PLAN',
+            defaultValue: true,
+            description: 'Run Terraform Plan'
+        )
+
+        booleanParam(
+            name: 'RUN_APPLY',
+            defaultValue: false,
+            description: 'Run Terraform Apply'
+        )
+
+        booleanParam(
+            name: 'RUN_DESTROY',
+            defaultValue: false,
+            description: 'Run Terraform Destroy'
+        )
+
+        booleanParam(
+            name: 'CONFIRM_DESTROY',
+            defaultValue: false,
+            description: 'Required confirmation for Terraform Destroy'
+        )
+    }
+
+    environment {
+
+        AWS_REGION = 'ap-south-1'
+
+    }
+
+    stages {
+
+        stage('Checkout Infrastructure') {
+
+            steps {
+
+                git(
+                    branch: 'main',
+                    credentialsId: 'github-creds',
+                    url: 'https://github.com/kiruthigagokul/hospital-management.git'
+                )
+
+            }
+        }
+
+        stage('Terraform Init') {
+
+            when {
+                expression {
+                    params.RUN_INIT
+                }
+            }
+
+            steps {
+
+                sh '''
+                    echo "===== Terraform Init ====="
+                    terraform --version
+                    terraform init
+                '''
+
+            }
+        }
+
+        stage('Terraform Validate') {
+
+            when {
+                expression {
+                    params.RUN_VALIDATE
+                }
+            }
+
+            steps {
+
+                sh '''
+                    echo "===== Terraform Validate ====="
+                    terraform validate
+                '''
+
+            }
+        }
+
+        stage('Terraform Plan') {
+
+            when {
+                expression {
+                    params.RUN_PLAN
+                }
+            }
+
+            steps {
+
+                sh '''
+                    echo "===== Terraform Plan ====="
+                    terraform plan -out=tfplan
+                '''
+
+            }
+        }
+
+        stage('Terraform Apply') {
+
+            when {
+                expression {
+                    params.RUN_APPLY
+                }
+            }
+
+            steps {
+
+                sh '''
+                    echo "===== Terraform Apply ====="
+                    terraform apply -auto-approve
+                '''
+
+            }
+        }
+
+        stage('Destroy Safety Check') {
+
+            when {
+                expression {
+                    params.RUN_DESTROY && !params.CONFIRM_DESTROY
+                }
+            }
+
+            steps {
+
+                error(
+                    'RUN_DESTROY is enabled but CONFIRM_DESTROY is not enabled. Infrastructure was NOT destroyed.'
+                )
+
+            }
+        }
+
+        stage('Terraform Destroy') {
+
+            when {
+                expression {
+                    params.RUN_DESTROY && params.CONFIRM_DESTROY
+                }
+            }
+
+            steps {
+
+                sh '''
+                    echo "===== Terraform Destroy ====="
+                    terraform destroy -auto-approve
+                '''
+
+            }
+        }
+    }
+
+    post {
+
+        always {
+
+            echo '===== Infrastructure Pipeline Finished ====='
+
+        }
+
+    }
+}
+```
