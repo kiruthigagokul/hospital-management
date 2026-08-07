@@ -101,85 +101,69 @@ pipeline {
 
     }
 }
-        stage('Build Python Service') {
+       stage('Build Python Service') {
 
-            steps {
+    steps {
 
-                dir(pythonService) {
+        dir("hospital_management_app/${pythonService}") {
+
+            sh '''
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            '''
+
+        }
+
+    }
+}
+
+
+        stage('Run Tests') {
+
+    steps {
+
+        script {
+
+            javaServices.each { service ->
+
+                dir("hospital_management_app/${service}") {
 
                     sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
+                    mvn test
                     '''
 
                 }
 
             }
 
-        }
 
+            dir("hospital_management_app/${pythonService}") {
 
-        stage('Run Tests') {
+                sh '''
 
-            steps {
+                . venv/bin/activate
 
-                script {
+                if [ -d tests ]; then
 
+                    pytest
 
-                    javaServices.each { service ->
+                else
 
+                    echo "No Python tests found"
 
-                        dir(service) {
+                fi
 
-
-                            sh '''
-
-                            mvn test
-
-                            '''
-
-
-                        }
-
-
-                    }
-
-
-
-                    dir(pythonService) {
-
-
-                        sh '''
-
-                        . venv/bin/activate
-
-
-                        if [ -d tests ]; then
-
-                            pytest
-
-                        else
-
-                            echo "No Python tests found"
-
-                        fi
-
-
-                        '''
-
-
-                    }
-
-
-                }
+                '''
 
             }
 
         }
 
+    }
 
+}
         stage('SonarQube Analysis') {
 
             steps {
