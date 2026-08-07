@@ -330,54 +330,32 @@ pipeline {
 
     steps {
 
-        withSonarQubeEnv('SonarQube') {
+        withCredentials([
+            string(
+                credentialsId: 'sonarqube-token',
+                variable: 'SONAR_AUTH_TOKEN'
+            )
+        ]) {
 
-            withCredentials([
-                string(
-                    credentialsId: 'sonarqube-token',
-                    variable: 'SONAR_AUTH_TOKEN'
-                )
-            ]) {
+            script {
 
+                javaServices.each { service ->
 
-                script {
+                    dir("hospital_management_app/${service}") {
 
-                    javaServices.each { service ->
-
-
-                        dir("hospital_management_app/${service}") {
-
-
-                            sh """
-
+                        sh """
                             mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.1.0.4751:sonar \
                             -Dsonar.projectKey=hospital-${service} \
-                            -Dsonar.host.url=$SONAR_HOST_URL \
-                            -Dsonar.token=$SONAR_AUTH_TOKEN \
-                            -X
-
-
-                            """
-
-
-                        }
-
+                            -Dsonar.host.url=http://sonarqube:9000 \
+                            -Dsonar.token=\$SONAR_AUTH_TOKEN
+                        """
 
                     }
-
-
                 }
-
-
             }
-
         }
-
     }
-
 }
-
-
 
 
         stage('Quality Gate') {
