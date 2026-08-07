@@ -453,6 +453,6 @@ stage('Push Docker Images') {
                 docker push ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
             """
         }
-    }
+      }
+   }
 }
-    }
