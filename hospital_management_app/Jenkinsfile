@@ -131,7 +131,7 @@ pipeline {
                 dir("hospital_management_app/${service}") {
 
                     sh '''
-                    mvn test
+                   mvn test -Dsurefire.printSummary=true -e
                     '''
 
                 }
