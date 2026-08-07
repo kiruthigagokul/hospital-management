@@ -383,243 +383,75 @@ pipeline {
 
 
 
-        stage('Build Docker Images') {
+      stage('Build Docker Images') {
 
+    steps {
 
+        script {
 
-            steps {
+            javaServices.each { service ->
 
-
-
-                script {
-
-
-
-                    javaServices.each { service ->
-
-
-
-                        dir("hospital_management_app/${service}") {
-
-
-
-                            sh """
-
-
-                            echo "Building Docker image ${service}"
-
-                            pwd
-
-                            ls -la
-
-
-                            docker build \
-
-                            -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
-
-
-                            """
-
-
-                        }
-
-
-
-                    }
-
-
-
-
-
-
-
-                    dir("hospital_management_app/${pythonService}") {
-
-
-
-                        sh """
-
-
-                        echo "Building Docker image ${pythonService}"
-
-
-                        pwd
-
-                        ls -la
-
-
-
-                        docker build \
-
-                        -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
-
-
-
-                        """
-
-
-                    }
-
-
-
-                }
-
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-
-
-        stage('Login To AWS ECR') {
-
-
-
-            steps {
-
-
-
-                withCredentials([
-
-
-
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-
-                    credentialsId: 'aws-creds']
-
-
-
-                ]) {
-
-
-
-                    sh '''
-
-
-
-                    aws ecr get-login-password \
-
-                    --region ${AWS_REGION} | \
-
-                    docker login \
-
-                    --username AWS \
-
-                    --password-stdin ${ECR_REGISTRY}
-
-
-
-                    '''
-
-
-
-                }
-
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-
-
-        stage('Push Docker Images') {
-
-
-
-            steps {
-
-
-
-                script {
-
-
-
-                    javaServices.each { service ->
-
-
-
-                        sh """
-
-
-                        docker push \
-
-                        ${ECR_REGISTRY}/${service}:${IMAGE_TAG}
-
-
-
-                        """
-
-
-
-                    }
-
-
-
-
-
+                dir("hospital_management_app/${service}") {
 
                     sh """
+                        echo "Building Docker image ${service}"
+                        pwd
+                        ls -la
 
-
-                    docker push \
-
-                    ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
-
-
-
+                        docker build -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
                     """
-
-
-
                 }
-
-
-
             }
 
+            dir("hospital_management_app/${pythonService}") {
 
+                sh """
+                    echo "Building Docker image ${pythonService}"
+                    pwd
+                    ls -la
 
+                    docker build -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
+                """
+            }
         }
-
-
-
-
-
-
-
-
-
-       
-
-
-
-
     }
+}
 
 
+stage('Login To AWS ECR') {
+
+    steps {
+
+        withCredentials([
+            [$class: 'AmazonWebServicesCredentialsBinding',
+             credentialsId: 'aws-creds']
+        ]) {
+
+            sh """
+                aws ecr get-login-password --region ${AWS_REGION} | \
+                docker login --username AWS --password-stdin ${ECR_REGISTRY}
+            """
+        }
+    }
+}
 
 
+stage('Push Docker Images') {
 
+    steps {
 
+        script {
 
-    
+            javaServices.each { service ->
 
+                sh """
+                    docker push ${ECR_REGISTRY}/${service}:${IMAGE_TAG}
+                """
+            }
 
-
+            sh """
+                docker push ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
+            """
+        }
+    }
 }
