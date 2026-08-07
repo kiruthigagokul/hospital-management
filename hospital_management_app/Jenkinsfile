@@ -330,12 +330,7 @@ pipeline {
 
     steps {
 
-        withCredentials([
-            string(
-                credentialsId: 'sonarqube-token',
-                variable: 'SONAR_AUTH_TOKEN'
-            )
-        ]) {
+        withSonarQubeEnv('SonarQube') {
 
             script {
 
@@ -347,7 +342,7 @@ pipeline {
                             mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.1.0.4751:sonar \
                             -Dsonar.projectKey=hospital-${service} \
                             -Dsonar.host.url=http://sonarqube:9000 \
-                            -Dsonar.token=\$SONAR_AUTH_TOKEN
+                            -Dsonar.token="\${SONAR_AUTH_TOKEN}"
                         """
 
                     }
@@ -356,7 +351,6 @@ pipeline {
         }
     }
 }
-
 
         stage('Quality Gate') {
 
