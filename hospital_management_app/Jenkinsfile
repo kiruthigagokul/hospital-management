@@ -13,9 +13,12 @@ def javaServices = [
 def pythonService = "notification-service"
 
 
+
 pipeline {
 
+
     agent any
+
 
 
     tools {
@@ -27,7 +30,9 @@ pipeline {
     }
 
 
+
     environment {
+
 
         AWS_REGION = "ap-south-1"
 
@@ -41,15 +46,22 @@ pipeline {
 
         HELM_CHART = "helm/hospital-management"
 
+
     }
+
+
+
 
 
     stages {
 
 
+
         stage('Checkout Code') {
 
+
             steps {
+
 
                 git(
 
@@ -61,19 +73,23 @@ pipeline {
 
                 )
 
+
             }
+
 
         }
 
 
 
+
+
         stage('Verify Tools') {
+
 
             steps {
 
-                sh '''
 
-                echo "Checking tools"
+                sh '''
 
                 java -version
 
@@ -81,9 +97,7 @@ pipeline {
 
                 docker --version
 
-                python3 --version || true
-
-                pip3 --version || true
+                python3 --version
 
                 kubectl version --client
 
@@ -94,9 +108,13 @@ pipeline {
 
                 '''
 
+
             }
 
+
         }
+
+
 
 
 
@@ -126,6 +144,7 @@ pipeline {
 
                             '''
 
+
                         }
 
 
@@ -139,6 +158,7 @@ pipeline {
 
 
         }
+
 
 
 
@@ -148,305 +168,29 @@ pipeline {
 
         stage('Build Python Service') {
 
-    steps {
-
-        dir("hospital_management_app/${pythonService}") {
-
-            sh '''
-            python3 -m venv venv
-
-            . venv/bin/activate
-
-            pip install --upgrade pip
-
-            pip install -r requirements.txt
-            '''
-
-        }
-
-    }
-
-}
-
-
-
-
-
-
-
-        stage('Run Tests') {
-
 
             steps {
 
 
-                script {
-
-
-                    javaServices.each { service ->
-
-
-                        dir("hospital_management_app/${service}") {
-
-
-                            sh '''
-
-                            mvn test || {
-
-                            echo "==== TEST REPORTS ===="
-
-                            find target/surefire-reports -type f -exec cat {} \\;
-
-                            exit 1
-
-                            }
-
-
-                            '''
-
-                        }
-
-
-                    }
-
-
-
-
-
-                    dir("hospital_management_app/${pythonService}") {
-
-
-                        sh '''
-
-
-                        if [ -d tests ]; then
-
-
-                            pytest
-
-
-                        else
-
-
-                            echo "No Python tests found"
-
-
-                        fi
-
-
-                        '''
-
-
-                    }
-
-
-                }
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-        stage('SonarQube Analysis') {
-
-
-            steps {
-
-
-                withSonarQubeEnv('sonarqube') {
-
-
-                    script {
-
-
-                        javaServices.each { service ->
-
-
-                            dir("hospital_management_app/${service}") {
-
-
-                                sh '''
-
-
-                                mvn sonar:sonar \
-
-                                -Dsonar.projectKey=hospital-${service} \
-
-                                -Dsonar.host.url=$SONAR_HOST_URL \
-
-                                -Dsonar.token=$SONAR_AUTH_TOKEN
-
-
-                                '''
-
-
-                            }
-
-
-                        }
-
-
-                    }
-
-
-                }
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-        stage('Quality Gate') {
-
-
-            steps {
-
-
-                timeout(time: 10, unit: 'MINUTES') {
-
-
-                    waitForQualityGate abortPipeline: true
-
-
-                }
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-        stage('Build Docker Images') {
-
-
-            steps {
-
-
-                script {
-
-
-                    javaServices.each { service ->
-
-
-
-                        dir("hospital_management_app/${service}") {
-
-
-
-                            sh """
-
-
-                            echo "Building Docker image ${service}"
-
-
-                            ls -la
-
-
-                            docker build \
-
-                            -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
-
-
-                            """
-
-
-                        }
-
-
-                    }
-
-
-
-
-
-                    dir("hospital_management_app/${pythonService}") {
-
-
-
-                        sh """
-
-
-                        echo "Building Docker image ${pythonService}"
-
-
-                        ls -la
-
-
-                        docker build \
-
-                        -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
-
-
-                        """
-
-
-                    }
-
-
-                }
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-        stage('Login To AWS ECR') {
-
-
-            steps {
-
-
-                withCredentials([
-
-
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-
-                    credentialsId: 'aws-creds']
-
-
-                ]) {
-
+                dir("hospital_management_app/${pythonService}") {
 
 
                     sh '''
 
 
-                    aws ecr get-login-password \
+                    echo "Creating Python environment"
 
-                    --region ${AWS_REGION} | \
 
-                    docker login \
+                    python3 -m venv venv
 
-                    --username AWS \
 
-                    --password-stdin ${ECR_REGISTRY}
+                    . venv/bin/activate
+
+
+                    pip install --upgrade pip
+
+
+                    pip install -r requirements.txt
 
 
                     '''
@@ -466,7 +210,8 @@ pipeline {
 
 
 
-        stage('Push Docker Images') {
+
+        stage('Run Tests') {
 
 
             steps {
@@ -478,15 +223,19 @@ pipeline {
                     javaServices.each { service ->
 
 
-                        sh """
+
+                        dir("hospital_management_app/${service}") {
 
 
-                        docker push \
 
-                        ${ECR_REGISTRY}/${service}:${IMAGE_TAG}
+                            sh '''
+
+                            mvn test
 
 
-                        """
+                            '''
+
+                        }
 
 
                     }
@@ -495,15 +244,172 @@ pipeline {
 
 
 
-                    sh """
+
+                    dir("hospital_management_app/${pythonService}") {
 
 
-                    docker push \
 
-                    ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
+                        sh '''
 
 
-                    """
+                        . venv/bin/activate
+
+
+
+                        if [ -d tests ]; then
+
+
+                            pytest --junitxml=test-results.xml
+
+
+                        else
+
+
+                            echo "No Python tests found"
+
+
+                        fi
+
+
+
+                        '''
+
+
+
+                    }
+
+
+
+                }
+
+
+
+            }
+
+
+
+        }
+
+
+
+
+
+
+
+
+        stage('Publish Test Reports') {
+
+
+            steps {
+
+
+                junit allowEmptyResults: true,
+
+                testResults: '**/target/surefire-reports/*.xml'
+
+
+
+                junit allowEmptyResults: true,
+
+                testResults: '**/test-results.xml'
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+
+        stage('SonarQube Analysis') {
+
+
+
+            steps {
+
+
+
+                withSonarQubeEnv('sonarqube') {
+
+
+
+                    script {
+
+
+
+                        javaServices.each { service ->
+
+
+
+                            dir("hospital_management_app/${service}") {
+
+
+
+                                sh '''
+
+
+                                mvn sonar:sonar \
+
+                                -Dsonar.projectKey=hospital-${service} \
+
+                                -Dsonar.host.url=$SONAR_HOST_URL \
+
+                                -Dsonar.token=$SONAR_AUTH_TOKEN
+
+
+                                '''
+
+
+
+                            }
+
+
+
+                        }
+
+
+
+                    }
+
+
+
+
+                }
+
+
+
+            }
+
+
+
+        }
+
+
+
+
+
+
+
+
+        stage('Quality Gate') {
+
+
+
+            steps {
+
+
+
+                timeout(time: 10, unit: 'MINUTES') {
+
+
+
+                    waitForQualityGate abortPipeline: true
+
 
 
                 }
@@ -520,10 +426,235 @@ pipeline {
 
 
 
-        stage('Deploy With Helm') {
+
+        stage('Build Docker Images') {
+
 
 
             steps {
+
+
+
+                script {
+
+
+
+                    javaServices.each { service ->
+
+
+
+                        dir("hospital_management_app/${service}") {
+
+
+
+                            sh """
+
+
+                            echo "Building Docker image ${service}"
+
+                            pwd
+
+                            ls -la
+
+
+                            docker build \
+
+                            -t ${ECR_REGISTRY}/${service}:${IMAGE_TAG} .
+
+
+                            """
+
+
+                        }
+
+
+
+                    }
+
+
+
+
+
+
+
+                    dir("hospital_management_app/${pythonService}") {
+
+
+
+                        sh """
+
+
+                        echo "Building Docker image ${pythonService}"
+
+
+                        pwd
+
+                        ls -la
+
+
+
+                        docker build \
+
+                        -t ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG} .
+
+
+
+                        """
+
+
+                    }
+
+
+
+                }
+
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+
+
+        stage('Login To AWS ECR') {
+
+
+
+            steps {
+
+
+
+                withCredentials([
+
+
+
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+
+                    credentialsId: 'aws-creds']
+
+
+
+                ]) {
+
+
+
+                    sh '''
+
+
+
+                    aws ecr get-login-password \
+
+                    --region ${AWS_REGION} | \
+
+                    docker login \
+
+                    --username AWS \
+
+                    --password-stdin ${ECR_REGISTRY}
+
+
+
+                    '''
+
+
+
+                }
+
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
+
+
+        stage('Push Docker Images') {
+
+
+
+            steps {
+
+
+
+                script {
+
+
+
+                    javaServices.each { service ->
+
+
+
+                        sh """
+
+
+                        docker push \
+
+                        ${ECR_REGISTRY}/${service}:${IMAGE_TAG}
+
+
+
+                        """
+
+
+
+                    }
+
+
+
+
+
+
+                    sh """
+
+
+                    docker push \
+
+                    ${ECR_REGISTRY}/${pythonService}:${IMAGE_TAG}
+
+
+
+                    """
+
+
+
+                }
+
+
+
+            }
+
+
+
+        }
+
+
+
+
+
+
+
+
+
+        stage('Deploy With Helm') {
+
+
+
+            steps {
+
 
 
                 sh """
@@ -540,7 +671,9 @@ pipeline {
                 --set image.tag=${IMAGE_TAG}
 
 
+
                 """
+
 
 
             }
@@ -554,19 +687,25 @@ pipeline {
 
 
 
+
+
         stage('Verify Deployment') {
+
 
 
             steps {
 
 
+
                 sh '''
+
 
 
                 kubectl get pods -n hospital
 
 
                 kubectl get services -n hospital
+
 
 
                 '''
@@ -578,7 +717,12 @@ pipeline {
         }
 
 
+
+
+
     }
+
+
 
 
 
@@ -587,10 +731,13 @@ pipeline {
     post {
 
 
+
         success {
 
 
-            echo "Hospital Management application deployed successfully"
+
+            echo "Hospital Management deployment successful"
+
 
 
         }
@@ -600,13 +747,17 @@ pipeline {
         failure {
 
 
+
             echo "Hospital Management pipeline failed"
+
 
 
         }
 
 
+
     }
+
 
 
 }
