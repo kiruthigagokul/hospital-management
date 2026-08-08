@@ -1,3 +1,4 @@
+```groovy
 pipeline {
 
     agent any
@@ -21,67 +22,34 @@ pipeline {
             defaultValue: true,
             description: 'Run Terraform Plan'
         )
-
-        booleanParam(
-            name: 'RUN_APPLY',
-            defaultValue: false,
-            description: 'Run Terraform Apply'
-        )
-
-        booleanParam(
-            name: 'RUN_DESTROY',
-            defaultValue: false,
-            description: 'Run Terraform Destroy'
-        )
-
-        booleanParam(
-            name: 'CONFIRM_DESTROY',
-            defaultValue: false,
-            description: 'Required confirmation for Terraform Destroy'
-        )
     }
 
     environment {
 
         AWS_REGION = 'ap-south-1'
 
+        ECR_REGISTRY = '897355252117.dkr.ecr.ap-south-1.amazonaws.com'
+
+        EKS_CLUSTER = 'hospital-eks'
+
+        HELM_RELEASE = 'hospital'
+
+        HELM_NAMESPACE = 'hospital'
+
+        HELM_CHART = 'helm/hospital-chart'
+
+        AWS_CREDENTIALS = 'aws-creds'
     }
 
     stages {
 
-        stage('Checkout Infrastructure') {
-
+        stage('Checkout') {
             steps {
-
-                git(
-                    branch: 'main',
-                    credentialsId: 'github-creds',
-                    url: 'https://github.com/kiruthigagokul/hospital-management.git'
-                )
-
-            }
-        }
-
-        stage('Verify Terraform Directory') {
-
-            steps {
-
-                sh '''
-                    echo "===== Workspace ====="
-                    pwd
-
-                    echo "===== Terraform Directory ====="
-                    ls -la hospital_management_infra/terraform
-
-                    echo "===== Terraform Files ====="
-                    find hospital_management_infra/terraform -maxdepth 1 -type f -name "*.tf" -print
-                '''
-
+                checkout scm
             }
         }
 
         stage('Terraform Init') {
-
             when {
                 expression {
                     params.RUN_INIT
@@ -89,22 +57,19 @@ pipeline {
             }
 
             steps {
-
-                dir('hospital_management_infra/terraform') {
-
+                dir('terraform') {
                     sh '''
+                        set -e
+
                         echo "===== Terraform Init ====="
-                        terraform --version
+
                         terraform init
                     '''
-
                 }
-
             }
         }
 
         stage('Terraform Validate') {
-
             when {
                 expression {
                     params.RUN_VALIDATE
@@ -112,21 +77,19 @@ pipeline {
             }
 
             steps {
-
-                dir('hospital_management_infra/terraform') {
-
+                dir('terraform') {
                     sh '''
+                        set -e
+
                         echo "===== Terraform Validate ====="
+
                         terraform validate
                     '''
-
                 }
-
             }
         }
 
         stage('Terraform Plan') {
-
             when {
                 expression {
                     params.RUN_PLAN
@@ -134,88 +97,261 @@ pipeline {
             }
 
             steps {
-
-                dir('hospital_management_infra/terraform') {
-
+                dir('terraform') {
                     sh '''
+                        set -e
+
                         echo "===== Terraform Plan ====="
-                        terraform plan -out=tfplan
+
+                        terraform plan
                     '''
-
                 }
-
             }
         }
 
-        stage('Terraform Apply') {
-
-            when {
-                expression {
-                    params.RUN_APPLY
-                }
-            }
-
+        stage('ECR Login') {
             steps {
-
-                dir('hospital_management_infra/terraform') {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: "${AWS_CREDENTIALS}"]
+                ]) {
 
                     sh '''
-                        echo "===== Terraform Apply ====="
-                        terraform apply -auto-approve
+                        set -e
+
+                        echo "===== Logging into ECR ====="
+
+                        aws sts get-caller-identity
+
+                        aws ecr get-login-password \
+                            --region "$AWS_REGION" |
+                        docker login \
+                            --username AWS \
+                            --password-stdin "$ECR_REGISTRY"
                     '''
-
                 }
-
             }
         }
 
-        stage('Destroy Safety Check') {
-
-            when {
-                expression {
-                    params.RUN_DESTROY && !params.CONFIRM_DESTROY
-                }
-            }
-
+        stage('Build Application Images') {
             steps {
+                sh '''
+                    set -e
 
-                error(
-                    'RUN_DESTROY is enabled but CONFIRM_DESTROY is not enabled. Infrastructure was NOT destroyed.'
-                )
+                    echo "===== Building Application Images ====="
 
+                    docker build -t "$ECR_REGISTRY/auth-service:v1" ./auth-service
+                    docker build -t "$ECR_REGISTRY/patient-service:v1" ./patient-service
+                    docker build -t "$ECR_REGISTRY/doctor-service:v1" ./doctor-service
+                    docker build -t "$ECR_REGISTRY/appointment-service:v1" ./appointment-service
+                    docker build -t "$ECR_REGISTRY/medical-record-service:v1" ./medical-record-service
+                    docker build -t "$ECR_REGISTRY/billing-service:v1" ./billing-service
+                    docker build -t "$ECR_REGISTRY/notification-service:v1" ./notification-service
+                    docker build -t "$ECR_REGISTRY/api-gateway:v3" ./api-gateway
+
+                    echo "===== Images Built ====="
+
+                    docker images | grep "$ECR_REGISTRY"
+                '''
             }
         }
 
-        stage('Terraform Destroy') {
-
-            when {
-                expression {
-                    params.RUN_DESTROY && params.CONFIRM_DESTROY
-                }
-            }
-
+        stage('Push Images to ECR') {
             steps {
+                sh '''
+                    set -e
 
-                dir('hospital_management_infra/terraform') {
+                    echo "===== Pushing Images to ECR ====="
+
+                    docker push "$ECR_REGISTRY/auth-service:v1"
+                    docker push "$ECR_REGISTRY/patient-service:v1"
+                    docker push "$ECR_REGISTRY/doctor-service:v1"
+                    docker push "$ECR_REGISTRY/appointment-service:v1"
+                    docker push "$ECR_REGISTRY/medical-record-service:v1"
+                    docker push "$ECR_REGISTRY/billing-service:v1"
+                    docker push "$ECR_REGISTRY/notification-service:v1"
+                    docker push "$ECR_REGISTRY/api-gateway:v3"
+
+                    echo "===== All Images Pushed ====="
+                '''
+            }
+        }
+
+        stage('Configure Existing EKS') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: "${AWS_CREDENTIALS}"]
+                ]) {
 
                     sh '''
-                        echo "===== Terraform Destroy ====="
-                        terraform destroy -auto-approve
+                        set -e
+
+                        echo "===== Configuring kubectl ====="
+
+                        aws sts get-caller-identity
+
+                        aws eks update-kubeconfig \
+                            --region "$AWS_REGION" \
+                            --name "$EKS_CLUSTER"
+
+                        echo "===== Current Kubernetes Context ====="
+
+                        kubectl config current-context
+
+                        echo "===== Cluster ====="
+
+                        kubectl cluster-info
+
+                        echo "===== Nodes ====="
+
+                        kubectl get nodes
                     '''
-
                 }
+            }
+        }
 
+        stage('Helm Deploy') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "===== Helm Lint ====="
+
+                    helm lint "$HELM_CHART"
+
+                    echo "===== Helm Template Check ====="
+
+                    helm template "$HELM_RELEASE" "$HELM_CHART" \
+                        --namespace "$HELM_NAMESPACE" \
+                        --set ingress.enabled=true
+
+                    echo "===== Helm Upgrade / Install ====="
+
+                    helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
+                        --namespace "$HELM_NAMESPACE" \
+                        --create-namespace \
+                        --set ingress.enabled=true
+
+                    echo "===== Helm Release ====="
+
+                    helm list \
+                        --namespace "$HELM_NAMESPACE"
+                '''
+            }
+        }
+
+        stage('Kubernetes Rollout Verification') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "===== Deployments ====="
+
+                    kubectl get deployments \
+                        -n "$HELM_NAMESPACE"
+
+                    echo "===== Pods ====="
+
+                    kubectl get pods \
+                        -n "$HELM_NAMESPACE"
+
+                    echo "===== Services ====="
+
+                    kubectl get services \
+                        -n "$HELM_NAMESPACE"
+
+                    echo "===== Waiting for Deployments ====="
+
+                    for deployment in $(kubectl get deployments \
+                        -n "$HELM_NAMESPACE" \
+                        -o jsonpath='{.items[*].metadata.name}')
+                    do
+                        echo "Waiting for $deployment"
+
+                        kubectl rollout status \
+                            deployment/"$deployment" \
+                            -n "$HELM_NAMESPACE" \
+                            --timeout=300s
+                    done
+
+                    echo "===== Rollout Verification Complete ====="
+                '''
+            }
+        }
+
+        stage('Verify Ingress') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "===== Ingress ====="
+
+                    kubectl get ingress \
+                        -n "$HELM_NAMESPACE"
+
+                    echo "===== Ingress Details ====="
+
+                    kubectl describe ingress hospital-ingress \
+                        -n "$HELM_NAMESPACE"
+
+                    echo "===== Waiting for ALB Address ====="
+
+                    for i in $(seq 1 30)
+                    do
+                        ADDRESS=$(kubectl get ingress hospital-ingress \
+                            -n "$HELM_NAMESPACE" \
+                            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' \
+                            2>/dev/null || true)
+
+                        if [ -n "$ADDRESS" ]; then
+                            echo "ALB ADDRESS: $ADDRESS"
+                            break
+                        fi
+
+                        echo "ALB not ready yet. Attempt $i/30"
+
+                        sleep 10
+                    done
+
+                    echo "===== Final Ingress ====="
+
+                    kubectl get ingress hospital-ingress \
+                        -n "$HELM_NAMESPACE" \
+                        -o wide
+                '''
             }
         }
     }
 
     post {
 
-        always {
-
-            echo "===== Infrastructure Pipeline Finished ====="
-
+        success {
+            echo '''
+            ==========================================
+              HOSPITAL APPLICATION DEPLOYMENT SUCCESS
+            ==========================================
+            '''
         }
 
+        failure {
+            echo '''
+            ==========================================
+              HOSPITAL APPLICATION DEPLOYMENT FAILED
+            ==========================================
+            Check the failed Jenkins stage above.
+            '''
+        }
+
+        always {
+            echo '===== Kubernetes Final Status ====='
+
+            sh '''
+                kubectl get pods -n "$HELM_NAMESPACE" 2>/dev/null || true
+                kubectl get services -n "$HELM_NAMESPACE" 2>/dev/null || true
+                kubectl get ingress -n "$HELM_NAMESPACE" 2>/dev/null || true
+            '''
+        }
     }
 }
+```
